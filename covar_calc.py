@@ -6,6 +6,12 @@ from math import isnan
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import f_regression
+from sklearn.preprocessing import PolynomialFeatures
+from mpl_toolkits.mplot3d import Axes3D
+
+
 def pproc(df):
 	# Pre-processing
 	df = df.replace("-", np.nan)
@@ -47,11 +53,11 @@ def label(df):
 			
 	return df, colour
 	
-def visualise(df_labeled):
+def visualise(df_labeled, blast):
+	'''
 	n_features = df_labeled.shape[1] - 2
 	fig, ax = plt.subplots(n_features, n_features)
 	plt.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01, wspace=0.2, hspace=0.4)
-
 	df = df_labeled.values
 	
 	for j in range(n_features):
@@ -61,10 +67,15 @@ def visualise(df_labeled):
 			ax[k,j].axes.get_yaxis().set_visible(False)
 	plt.show()
 	'''
-	plt.gca
-	plt.scatter(df[:, 2], df[:, 4], c=colour)
+	df = df_labeled.values
+	n_features = df_labeled.shape[1]
+	fig, ax = plt.subplots(1, n_features)
+	plt.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01, wspace=0.2, hspace=0.4)
+	
+	for i in range(n_features):
+		ax[i].scatter(df[:,i], blast)
 	plt.show()
-	'''
+	
 	return None
 	
 def calc_pca(df, colour):
@@ -87,22 +98,79 @@ def calc_fda(df, colour):
 	
 	trans = LinearDiscriminantAnalysis()
 	trans.fit(df, label)
+	
+def feature_sel(df, blast):
+	X_new = SelectKBest(f_regression, k=2).fit_transform(df, blast)
+	
+	return X_new
+	
+def least_squares(X, Y):
+    """Calculates the coefficients for equation of regession line."""
+    X_T = np.transpose(X)
 
-df = pd.read_csv('all_features.csv')
+    a_1 = np.dot(X_T, X)
+    a_2 = np.linalg.inv(a_1)
+    a_3 = np.dot(a_2, X_T)
+    a = np.dot(a_3, Y)
+
+    return a
+
+df = pd.read_csv('motility_features.csv')
+print(df.shape)
+df = df.apply(pd.to_numeric, errors='coerce')
 df = pproc(df)
+
+df = df.dropna()
+print(df.shape)
+
 blast = df['BLAST_D8']
+print(blast.shape)
 df = df.drop('BLAST_D8', axis=1)
 
+visualise(df, blast)
 
 # Covar matrix
 C = df.cov()
 
 df_normalized = norm(df)
 
+# Feature Selection
+df_new = feature_sel(df_normalized, blast)
+print(df_new.shape)
+
+poly = PolynomialFeatures(degree=2)
+df_poly = poly.fit_transform(df_new)
+weights = least_squares(df_poly, blast)
+
+'''
+fig, ax = plt.subplots(1, 2)
+plt.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01, wspace=0.2, hspace=0.4)
+ax[0, 0].scatter(df_new[:, 0], blast[:])
+ax[1, 0].scatter(df_new[:, 1], blast[:])
+'''
+'''
+x1 = np.linspace(0,1,312)
+x2 = np.linspace(0,0.2,312)
+X_test = np.vstack((x1,x2))
+X_test = X_test.T
+print(X_test.shape)
+poly_test = poly.fit_transform(X_test)
+y_test = np.dot(poly_test,weights)
+y = np.dot(df_poly, weights)
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(df_new[:,0],df_new[:,1], y)
+ax.plot(x1,x2,y_test)
+
+#plt.scatter(df_new[:, 0], df_new[:, 1])
+plt.show()
+'''
+
 # Normalized covar matrix
 C_n = df_normalized.cov()
 df_normalized['BLAST_D8'] = blast
 df_labeled, colour = label(df_normalized)
 
-#visualise(df_labeled)
-calc_pca(df, colour)
+
+#calc_pca(df, colour)
