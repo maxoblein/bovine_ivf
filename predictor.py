@@ -124,12 +124,30 @@ def gpr(train_features, train_blast, test_features, test_blast):
 	from sklearn.gaussian_process import GaussianProcessRegressor
 	from sklearn.gaussian_process.kernels import RBF
 
-	K = RBF(length_scale=0.1)
-	gprn = GaussianProcessRegressor(kernel=K, alpha=0.5).fit(train_features, train_blast)
+	#K = RBF(length_scale=0.1)
+	#gprn = GaussianProcessRegressor(kernel=K, alpha=0.5).fit(train_features, train_blast)
+	kernel = RBF(10.0, (1e-3, 1e3))
+	gprn = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10, alpha=0.1).fit(train_features, train_blast)
 	predictions_train = gprn.predict(train_features)
 	predictions_test = gprn.predict(test_features)
 
 	calc_error(predictions_train, predictions_test, train_blast, test_blast)
+	#
+	# parameters = {
+	# 'alpha': [0.2, 0.4, 0.6, 0.8, 1],
+	# 'kernel_length_scale': [0.05, 0.1, 0.15],
+	# 'kernel': [RBF]}
+	#
+	# gprn_random = RandomizedSearchCV(gprn, parameters)
+	# gprn_random.fit(train_features, train_blast)
+	#
+	# best_grid = gprn_random.best_estimator_
+	#
+	# predictions_train = best_grid.predict(train_features)
+	# predictions_test = best_grid.predict(test_features)
+	#
+	# calc_error(predictions_train, predictions_test, train_blast, test_blast)
+
 
 	params = gprn.get_params()
 	return params
@@ -245,7 +263,6 @@ def boosted_trees(train_features, train_blast, test_features, test_blast):
 
 	return params
 
-
 def calc_error(predictions_train, predictions_test, train_blast, test_blast):
 	'''
 	errors = abs(predictions_train - train_blast)
@@ -272,8 +289,8 @@ def calc_error(predictions_train, predictions_test, train_blast, test_blast):
 		plt.gca()
 		#plt.scatter(np.linspace(0, 1, len(predictions_train)), predictions_train, c='red', label='train prediction')
 		#plt.scatter(np.linspace(0, 1, len(predictions_train)), train_blast, c='blue', label='train true')
-		plt.scatter(np.linspace(0, 1, len(predictions_test)), predictions_test, c='green', label='test prediction')
-		plt.scatter(np.linspace(0, 1, len(predictions_test)), test_blast, c='yellow', label='test true',alpha = 0.5)
+		plt.scatter(np.linspace(0, 1, len(predictions_test)), predictions_test, c='red', label='test prediction')
+		plt.scatter(np.linspace(0, 1, len(predictions_test)), test_blast, c='blue', label='test true',alpha = 0.5)
 		plt.legend()
 		plt.show()
 
