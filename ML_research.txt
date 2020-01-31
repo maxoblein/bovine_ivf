@@ -1,0 +1,57 @@
+assume complex underlying function
+implies low bias high variance approach - flexible model
+requires lots of training data
+
+high dimensionality prefers high bias low variance approach
+what constitutes high dimensionality? consider dimensionality reduction (PCA)?
+
+overfitting where model is too simple for data - deterministic noise?
+regularization is a solution to this - attempts high bias low variance approach (also removed redundant features)
+opposite to flexible model
+could alternatively attempt to remove noise - significance tests
+
+heterogenous data (what we have) suited to trees rather that regression
+regression requires data to be scaled to [-1,1] interval
+
+nonlinear interations must be manually specified to implement linear models (ie regression)
+trees and neural nets work best for nonlinear data
+
+
+cross validation - the technique of having train/test sets
+
+
+first thoughts:
+nonlinear implies svm with higher order kernels, transforms to higher orders, feature engineering?
+
+regression is predicting continuous variables
+	linear - lasso, ridge, elastic-net
+		not good for nonlinear trends
+	trees - decision, random forest (decent), gradient boosted trees (better but hard to tune)
+		good for nonlinear trends, handle outliers, ensembles (RF, GBT) prevent overfitting
+	deep learning - neural nets
+		lots of data, hard to train
+	nearest neighbours
+		bad in high dimensions, need meaningful distance measure
+classification is predicting a class
+	logistic regression
+		binary classification
+	trees
+		as above
+	deep learning
+		as above
+	svms
+		good for nonliear trends, robust against overfitting, but hard to tune (industry prefers RFs)
+	naive bayes
+		assumes independence of features, work well but are out performed
+clustering
+	
+additive_chi2 = 21.91
+linear = 17.33
+poly = 7.51
+polynomial = 7.51
+rbf = 24.14
+laplacian = 25.57
+sigmoid = 13.93
+cosine = 15.84
+
+forest = 40.88

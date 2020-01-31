@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, normalize
 from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_regression
@@ -24,24 +24,29 @@ def pre_process(sperm_data):
 	sperm_data = sperm_data.apply(pd.to_numeric, errors='coerce')
 	sperm_data = sperm_data.dropna()
 	print(sperm_data.shape)
+	sperm_data['WOB'] = (sperm_data['VAP'] / sperm_data['VCL']) * 100
+	sperm_data['DNC']  = sperm_data['VAP'] * sperm_data['ALH']
+	print(sperm_data.shape)
+	sperm_data = sperm_data[(sperm_data['VCL'] * sperm_data['ALH']) != 9160.5] # Outlier
+	print(sperm_data.shape)
+
+	# Q1 = sperm_data.quantile(0.25)
+	# Q3 = sperm_data.quantile(0.75)
+	# IQR = Q3 - Q1
+
+	# sperm_data_out = sperm_data[~((sperm_data < (Q1 - 1.5 * IQR)) | (sperm_data > (Q3 + 1.5 * IQR))).all(axis=1)]
+	# sperm_data_out.shape
 
 
-	Q1 = sperm_data.quantile(0.25)
-	Q3 = sperm_data.quantile(0.75)
-	IQR = Q3 - Q1
+	# # Create an object to transform the data to fit minmax processor
+	# scaled_data = StandardScaler().fit_transform(sperm_data.values)
+	# # Run the normalizer on the dataframe
+	# norm_data = pd.DataFrame(scaled_data, index=sperm_data.index, columns=sperm_data.columns)
 
+	# cols = sperm_data.columns
+	# sperm_data_out = pd.DataFrame(normalize(sperm_data, norm='l2'), columns = cols)
 
-	#print(sperm_data < (Q1 - 1.5 * IQR)) |(sperm_data > (Q3 + 1.5 * IQR))
-	sperm_data_out = sperm_data[~((sperm_data < (Q1 - 1.5 * IQR)) | (sperm_data > (Q3 + 1.5 * IQR))).any(axis=1)]
-	sperm_data_out.shape
-
-	'''
-	# Create an object to transform the data to fit minmax processor
-	scaled_data = StandardScaler().fit_transform(sperm_data.values)
-	# Run the normalizer on the dataframe
-	norm_data = pd.DataFrame(scaled_data, index=sperm_data.index, columns=sperm_data.columns)
-	'''
-	return sperm_data_out
+	return sperm_data
 
 def feature_selection(processed_data):
 	correlated_features = set()
@@ -58,8 +63,7 @@ def feature_selection(processed_data):
 	train_features, test_features, train_blast, test_blast = train_test_split(
 		processed_data.drop(labels=['BLAST_D8'], axis=1),
 		processed_data['BLAST_D8'],
-		test_size=0.3,
-		random_state=41)
+		test_size=0.3)
 	print(train_features.shape)
 
 
@@ -231,14 +235,14 @@ def random_forest(train_features, train_blast, test_features, test_blast):
 def boosted_trees(train_features, train_blast, test_features, test_blast):
 	from sklearn.ensemble import GradientBoostingRegressor
 
-	br_2 = GradientBoostingRegressor(max_depth=30, n_estimators=30, learning_rate=0.3, max_features=3, min_samples_leaf=2, min_samples_split=8)
-	br_2.fit(train_features, train_blast)
+	bt = GradientBoostingRegressor(max_depth=30, n_estimators=30, learning_rate=0.3, max_features=3, min_samples_leaf=2, min_samples_split=8)
+	bt.fit(train_features, train_blast)
 
-	predictions_train = br_2.predict(train_features)
-	predictions_test = br_2.predict(test_features)
+	predictions_train = bt.predict(train_features)
+	predictions_test = bt.predict(test_features)
 
-	calc_error(predictions_train, predictions_test, train_blast, test_blast)
-	params = br_2.get_params()
+	#calc_error(predictions_train, predictions_test, train_blast, test_blast)
+	params = bt.get_params()
 
 
 	parameters = {
@@ -249,17 +253,17 @@ def boosted_trees(train_features, train_blast, test_features, test_blast):
 	'max_depth': [30,40,50,60,70,80],
 	'learning_rate': [0.01, 0.03, 0.05, 0.07, 0.3,0.4,0.5]
 	}
-	#
-	# br_random = RandomizedSearchCV(br_2, parameters,scoring = make_scorer(mean_absolute_error,greater_is_better=False))
-	# br_random.fit(train_features, train_blast)
-	#
-	# best_grid = br_random.best_estimator_
-	#
-	# predictions_train = best_grid.predict(train_features)
-	# predictions_test = best_grid.predict(test_features)
-	#
-	# calc_error(predictions_train, predictions_test, train_blast, test_blast)
-	# params = best_grid.get_params()
+
+	bt_random = RandomizedSearchCV(bt, parameters, scoring = make_scorer(bal_error, greater_is_better=False))
+	bt_random.fit(train_features, train_blast)
+
+	best_grid = bt_random.best_estimator_
+
+	predictions_train = best_grid.predict(train_features)
+	predictions_test = best_grid.predict(test_features)
+
+	calc_error(predictions_train, predictions_test, train_blast, test_blast)
+	params = best_grid.get_params()
 
 	return params
 
@@ -278,6 +282,9 @@ def calc_error(predictions_train, predictions_test, train_blast, test_blast):
 	accuracy = 100 - mape
 	print('Accuracy: ', round(accuracy, 2), '%.')
 	'''
+
+	errors = np.abs(test_blast - predictions_test)
+
 	max_err = np.max(np.abs(test_blast - predictions_test))
 	print('Max: ', max_err)
 	var_err = explained_variance_score(test_blast, predictions_test)
@@ -289,10 +296,38 @@ def calc_error(predictions_train, predictions_test, train_blast, test_blast):
 		plt.gca()
 		#plt.scatter(np.linspace(0, 1, len(predictions_train)), predictions_train, c='red', label='train prediction')
 		#plt.scatter(np.linspace(0, 1, len(predictions_train)), train_blast, c='blue', label='train true')
-		plt.scatter(np.linspace(0, 1, len(predictions_test)), predictions_test, c='red', label='test prediction')
-		plt.scatter(np.linspace(0, 1, len(predictions_test)), test_blast, c='blue', label='test true',alpha = 0.5)
+		# plt.scatter(np.linspace(0, 1, len(predictions_test)), predictions_test, c='red', label='test prediction')
+		# plt.scatter(np.linspace(0, 1, len(predictions_test)), test_blast, c='blue', label='test true',alpha = 0.5)
+		plt.scatter(np.linspace(0, 1, len(predictions_test)),errors,label = 'errors')
 		plt.legend()
 		plt.show()
+
+	return None
+
+def max_error(test_blast, predictions_test):
+	err = np.max(np.abs(test_blast - predictions_test))
+	return err
+
+def bal_error(test_blast, predictions_test):
+	max = np.max(np.abs(test_blast - predictions_test))
+	mae = mean_absolute_error(test_blast, predictions_test)
+
+	a = mae / (mae + max); b = max / (mae + max)
+	bal = np.mean([2*a, b])
+
+	return bal
+
+def visualise(df, blast):
+	n_features = df.shape[1]
+	fig, ax = plt.subplots(1, n_features)
+	plt.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01, wspace=0.2, hspace=0.4)
+	df = df.values
+
+	for k in range(n_features):
+		ax[k].scatter(df[:, k], blast, s=0.5)
+		ax[k].axes.get_xaxis().set_visible(True)
+		ax[k].axes.get_yaxis().set_visible(True)
+	plt.show()
 
 	return None
 
@@ -314,5 +349,5 @@ if __name__ == "__main__":
 		params = boosted_trees(train_features, train_blast, test_features, test_blast)
 	elif '--gp' in sys.argv:
 		params = gpr(train_features, train_blast, test_features, test_blast)
-
+	#visualise(processed_data.drop(['BLAST_D8'], axis=1), processed_data['BLAST_D8'])
 	print(params)
